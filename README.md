@@ -1,7 +1,7 @@
 # About
 This repo shows how to use dify backend-as-a-service and nextjs frontend to build a webpage summarizer and classifier.
 
-![alt text](<Screenshot 2025-01-08 at 6.40.01 PM.png>)
+![alt text](<Screenshot 2025-01-08 at 6.40.01 PM.png>)
 
 
 ```
@@ -37,16 +37,16 @@ harrywang@m1-hw docker % docker compose up -d
 ```
  After running, you can access the Dify dashboard in your browser at http://localhost/install and start the initialization process.
 
-![alt text](<Screenshot 2025-01-08 at 10.50.41 AM.png>)
+![alt text](<Screenshot 2025-01-08 at 10.50.41 AM.png>)
 
-![alt text](<Screenshot 2025-01-08 at 10.50.58 AM.png>)
+![alt text](<Screenshot 2025-01-08 at 10.50.58 AM.png>)
 
-![alt text](<Screenshot 2025-01-08 at 10.51.56 AM.png>)
+![alt text](<Screenshot 2025-01-08 at 10.51.56 AM.png>)
 
 
 http://localhost/apps
 
-![alt text](<Screenshot 2025-01-08 at 3.40.52 PM.png>)
+![alt text](<Screenshot 2025-01-08 at 3.40.52 PM.png>)
 
 ```
 curl -X POST 'http://localhost/v1/workflows/run' \
@@ -60,9 +60,9 @@ curl -X POST 'http://localhost/v1/workflows/run' \
 
 ```
 
-![alt text](<Screenshot 2025-01-08 at 3.38.27 PM.png>)
+![alt text](<Screenshot 2025-01-08 at 3.38.27 PM.png>)
 
-![alt text](<Screenshot 2025-01-08 at 3.39.00 PM.png>)
+![alt text](<Screenshot 2025-01-08 at 3.39.00 PM.png>)
 
 
 LLM Node has input and output tokens and models information:
@@ -184,3 +184,16 @@ npm run dev
 ## Environment Variables
 
 - `NEXT_PUBLIC_DIFY_API_KEY`: Your Dify API key for authentication
+
+## Sample Workflow
+
+You can import the following workflow in Dify to get started. Save the content below as a YAML file and import it in your Dify workspace:
+
+[Webpage Summarizer and Classifier v1.0.yml](Webpage%20Summarizer%20and%20Classifier%20v1.0.yml)
+
+This workflow includes:
+1. A web scraper tool to extract content from any webpage
+2. Two LLM nodes:
+   - First LLM summarizes the webpage content in less than 20 words
+   - Second LLM classifies the content into one of these categories: tech, art, academic, other
+3. Input/output handling for URL processing and result formatting
