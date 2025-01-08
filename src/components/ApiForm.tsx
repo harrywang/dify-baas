@@ -2,6 +2,13 @@
 
 import { useState } from 'react';
 
+interface LLMStats {
+  nodeCount: number;
+  inputTokens: number;
+  outputTokens: number;
+  totalCost: number;
+}
+
 export default function ApiForm() {
   const [url, setUrl] = useState('https://harrywang.me/car');
   const [response, setResponse] = useState('');
@@ -12,6 +19,12 @@ export default function ApiForm() {
     url: '',
     summary: '',
     category: ''
+  });
+  const [llmStats, setLLMStats] = useState<LLMStats>({
+    nodeCount: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    totalCost: 0
   });
 
   const cleanMarkdownJSON = (str: string) => {
@@ -28,6 +41,12 @@ export default function ApiForm() {
       url: url,
       summary: 'Analyzing...',
       category: 'Pending'
+    });
+    setLLMStats({
+      nodeCount: 0,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalCost: 0
     });
 
     try {
@@ -75,6 +94,22 @@ export default function ApiForm() {
 
                 if (jsonData.event === 'message') {
                   setResponse(jsonData.answer || jsonData.message || '');
+                } else if (jsonData.event === 'node_finished' && jsonData.data.node_type === 'llm') {
+                  console.log('LLM node finished:', jsonData.data);
+                  const outputs = jsonData.data.outputs;
+                  const usage = outputs?.usage;
+                  console.log('LLM usage:', usage);
+                  
+                  if (usage) {
+                    const stats = {
+                      nodeCount: 1,
+                      inputTokens: usage.prompt_tokens || 0,
+                      outputTokens: usage.completion_tokens || 0,
+                      totalCost: parseFloat(usage.total_price) || 0
+                    };
+                    console.log('Setting LLM stats:', stats);
+                    setLLMStats(stats);
+                  }
                 } else if (jsonData.event === 'workflow_finished') {
                   console.log('Workflow finished data:', jsonData.data);
                   console.log('Outputs:', jsonData.data.outputs);
@@ -193,6 +228,30 @@ export default function ApiForm() {
             }`}>
               {finalResult.category || 'Uncategorized'}
             </span>
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-4 border rounded-lg p-4 bg-white shadow-sm">
+        <h3 className="text-lg font-medium text-gray-900 mb-4">LLM Statistics</h3>
+        <div className="grid grid-cols-2 gap-4">
+          <div className="bg-gray-50 p-3 rounded-md">
+            <div className="text-sm text-gray-500">LLM Nodes</div>
+            <div className="text-lg font-semibold">{llmStats.nodeCount}</div>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-md">
+            <div className="text-sm text-gray-500">Input Tokens</div>
+            <div className="text-lg font-semibold">{llmStats.inputTokens.toLocaleString()}</div>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-md">
+            <div className="text-sm text-gray-500">Output Tokens</div>
+            <div className="text-lg font-semibold">{llmStats.outputTokens.toLocaleString()}</div>
+          </div>
+          <div className="bg-gray-50 p-3 rounded-md">
+            <div className="text-sm text-gray-500">Total Cost</div>
+            <div className="text-lg font-semibold">
+              ${llmStats.totalCost.toFixed(6)}
+            </div>
           </div>
         </div>
       </div>
