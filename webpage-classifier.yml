@@ -1,0 +1,215 @@
+app:
+  description: AI workflow to summarize and classify any webpage
+  icon: ☸️
+  icon_background: '#FFEAD5'
+  mode: workflow
+  name: 网页摘要和分类器 v1.0
+  use_icon_as_answer_icon: false
+kind: app
+version: 0.1.4
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      allowed_file_extensions:
+      - .JPG
+      - .JPEG
+      - .PNG
+      - .GIF
+      - .WEBP
+      - .SVG
+      allowed_file_types:
+      - image
+      allowed_file_upload_methods:
+      - local_file
+      - remote_url
+      enabled: false
+      fileUploadConfig:
+        audio_file_size_limit: 50
+        batch_count_limit: 5
+        file_size_limit: 50
+        image_file_size_limit: 10
+        video_file_size_limit: 100
+        workflow_file_upload_limit: 10
+      image:
+        enabled: false
+        number_limits: 3
+        transfer_methods:
+        - local_file
+        - remote_url
+      number_limits: 3
+    opening_statement: ''
+    retriever_resource:
+      enabled: false
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+      language: ''
+      voice: ''
+  graph:
+    edges:
+    - data:
+        isInIteration: false
+        sourceType: start
+        targetType: tool
+      id: 1723994608067-source-1723994640824-target
+      source: '1723994608067'
+      sourceHandle: source
+      target: '1723994640824'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: tool
+        targetType: llm
+      id: 1723994640824-source-1723994657605-target
+      source: '1723994640824'
+      sourceHandle: source
+      target: '1723994657605'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    - data:
+        isInIteration: false
+        sourceType: llm
+        targetType: end
+      id: 1723994657605-source-1723994710114-target
+      source: '1723994657605'
+      sourceHandle: source
+      target: '1723994710114'
+      targetHandle: target
+      type: custom
+      zIndex: 0
+    nodes:
+    - data:
+        desc: ''
+        selected: false
+        title: 开始
+        type: start
+        variables:
+        - label: 网页链接
+          max_length: 256
+          options: []
+          required: true
+          type: text-input
+          variable: url
+      height: 90
+      id: '1723994608067'
+      position:
+        x: 30
+        y: 257
+      positionAbsolute:
+        x: 30
+        y: 257
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        desc: ''
+        provider_id: webscraper
+        provider_name: webscraper
+        provider_type: builtin
+        selected: false
+        title: '网页爬虫 '
+        tool_configurations:
+          generate_summary: null
+          user_agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
+            (KHTML, like Gecko) Chrome/100.0.1000.0 Safari/537.36
+        tool_label: Web Scraper
+        tool_name: webscraper
+        tool_parameters:
+          url:
+            type: mixed
+            value: '{{#1723994608067.url#}}'
+        type: tool
+      height: 116
+      id: '1723994640824'
+      position:
+        x: 333
+        y: 257
+      positionAbsolute:
+        x: 333
+        y: 257
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        context:
+          enabled: false
+          variable_selector: []
+        desc: ''
+        model:
+          completion_params:
+            temperature: 0.7
+          mode: chat
+          name: gpt-4o-mini
+          provider: openai
+        prompt_template:
+        - id: e48bb448-dae0-470f-b792-c701bdeb6211
+          role: system
+          text: "网页内容是: \n\n*****\n\n{{#1723994640824.text#}}\n\n*****\n\n将网页摘要控制在20个字以内\n\
+            \n将网页分类为以下类别之一：技术、艺术、学术、其他\n\n输出一个包含key的JSON文档：内容概述和类别"
+        selected: true
+        title: LLM
+        type: llm
+        variables: []
+        vision:
+          configs:
+            detail: high
+          enabled: true
+      height: 98
+      id: '1723994657605'
+      position:
+        x: 636
+        y: 257
+      positionAbsolute:
+        x: 636
+        y: 257
+      selected: true
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    - data:
+        desc: ''
+        outputs:
+        - value_selector:
+          - '1723994608067'
+          - url
+          variable: 网页链接
+        - value_selector:
+          - '1723994657605'
+          - text
+          variable: 大语言模型输出
+        selected: false
+        title: 结束
+        type: end
+      height: 116
+      id: '1723994710114'
+      position:
+        x: 939
+        y: 257
+      positionAbsolute:
+        x: 939
+        y: 257
+      selected: false
+      sourcePosition: right
+      targetPosition: left
+      type: custom
+      width: 244
+    viewport:
+      x: 0
+      y: 1.0000000000000142
+      zoom: 0.7
