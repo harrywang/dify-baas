@@ -1,7 +1,8 @@
 # About
 This repo shows how to use dify backend-as-a-service and nextjs frontend to build a webpage summarizer and classifier.
 
-![alt text](<Screenshot 2025-01-08 at 6.29.10 PM.png>)
+![alt text](<Screenshot 2025-01-08 at 6.40.01 PM.png>)
+
 
 ```
 git clone https://github.com/langgenius/dify

@@ -2,11 +2,23 @@
 
 import { useState } from 'react';
 
-interface LLMStats {
-  nodeCount: number;
+interface LLMNodeStats {
+  nodeId: string;
+  title: string;
+  model: string;
   inputTokens: number;
   outputTokens: number;
+  totalTokens: number;
+  cost: number;
+  latency: number;
+}
+
+interface WorkflowStats {
+  totalSteps: number;
+  totalTokens: number;
   totalCost: number;
+  elapsedTime: number;
+  llmNodes: LLMNodeStats[];
 }
 
 export default function ApiForm() {
@@ -20,16 +32,13 @@ export default function ApiForm() {
     summary: '',
     category: ''
   });
-  const [llmStats, setLLMStats] = useState<LLMStats>({
-    nodeCount: 0,
-    inputTokens: 0,
-    outputTokens: 0,
-    totalCost: 0
+  const [workflowStats, setWorkflowStats] = useState<WorkflowStats>({
+    totalSteps: 0,
+    totalTokens: 0,
+    totalCost: 0,
+    elapsedTime: 0,
+    llmNodes: []
   });
-
-  const cleanMarkdownJSON = (str: string) => {
-    return str.replace(/```json\s*|\s*```/g, '').trim();
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,11 +51,12 @@ export default function ApiForm() {
       summary: 'Analyzing...',
       category: 'Pending'
     });
-    setLLMStats({
-      nodeCount: 0,
-      inputTokens: 0,
-      outputTokens: 0,
-      totalCost: 0
+    setWorkflowStats({
+      totalSteps: 0,
+      totalTokens: 0,
+      totalCost: 0,
+      elapsedTime: 0,
+      llmNodes: []
     });
 
     try {
@@ -95,54 +105,41 @@ export default function ApiForm() {
                 if (jsonData.event === 'message') {
                   setResponse(jsonData.answer || jsonData.message || '');
                 } else if (jsonData.event === 'node_finished' && jsonData.data.node_type === 'llm') {
-                  console.log('LLM node finished:', jsonData.data);
-                  const outputs = jsonData.data.outputs;
-                  const usage = outputs?.usage;
-                  console.log('LLM usage:', usage);
+                  const nodeData = jsonData.data;
+                  const usage = nodeData.outputs?.usage;
                   
                   if (usage) {
-                    const stats = {
-                      nodeCount: 1,
+                    const nodeStats: LLMNodeStats = {
+                      nodeId: nodeData.node_id,
+                      title: nodeData.title,
+                      model: nodeData.process_data?.model_name || 'unknown',
                       inputTokens: usage.prompt_tokens || 0,
                       outputTokens: usage.completion_tokens || 0,
-                      totalCost: parseFloat(usage.total_price) || 0
+                      totalTokens: usage.total_tokens || 0,
+                      cost: parseFloat(usage.total_price) || 0,
+                      latency: usage.latency || 0
                     };
-                    console.log('Setting LLM stats:', stats);
-                    setLLMStats(stats);
+                    
+                    setWorkflowStats(prev => ({
+                      ...prev,
+                      llmNodes: [...prev.llmNodes, nodeStats],
+                      totalTokens: prev.totalTokens + nodeStats.totalTokens,
+                      totalCost: prev.totalCost + nodeStats.cost
+                    }));
                   }
                 } else if (jsonData.event === 'workflow_finished') {
-                  console.log('Workflow finished data:', jsonData.data);
-                  console.log('Outputs:', jsonData.data.outputs);
+                  setWorkflowStats(prev => ({
+                    ...prev,
+                    totalSteps: jsonData.data.total_steps || 0,
+                    elapsedTime: jsonData.data.elapsed_time || 0
+                  }));
                   
-                  if (jsonData.data.outputs.大语言模型输出) {
-                    try {
-                      const cleanedJSON = cleanMarkdownJSON(jsonData.data.outputs.大语言模型输出);
-                      console.log('Cleaned JSON string:', cleanedJSON);
-                      const llmOutput = JSON.parse(cleanedJSON);
-                      console.log('Parsed LLM output:', llmOutput);
-                      
-                      const result = {
-                        url: jsonData.data.outputs.网页链接,
-                        summary: llmOutput.内容概述,
-                        category: llmOutput.类别
-                      };
-                      console.log('Final result:', result);
-                      setFinalResult(result);
-                    } catch (e) {
-                      console.error('Error parsing LLM output:', e);
-                      setError('Error parsing LLM output: ' + e.message);
-                      setFinalResult({
-                        url: url,
-                        summary: 'Error analyzing content',
-                        category: 'Error'
-                      });
-                    }
-                  } else {
-                    console.log('No LLM output found in data');
+                  const outputs = jsonData.data.outputs;
+                  if (outputs) {
                     setFinalResult({
-                      url: url,
-                      summary: 'No analysis available',
-                      category: 'N/A'
+                      url: outputs.url || '',
+                      summary: outputs.summary || '',
+                      category: outputs.classification || ''
                     });
                   }
                 }
@@ -233,26 +230,58 @@ export default function ApiForm() {
       </div>
 
       <div className="mt-4 border rounded-lg p-4 bg-white shadow-sm">
-        <h3 className="text-lg font-medium text-gray-900 mb-4">LLM Statistics</h3>
-        <div className="grid grid-cols-2 gap-4">
-          <div className="bg-gray-50 p-3 rounded-md">
-            <div className="text-sm text-gray-500">LLM Nodes</div>
-            <div className="text-lg font-semibold">{llmStats.nodeCount}</div>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-md">
-            <div className="text-sm text-gray-500">Input Tokens</div>
-            <div className="text-lg font-semibold">{llmStats.inputTokens.toLocaleString()}</div>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-md">
-            <div className="text-sm text-gray-500">Output Tokens</div>
-            <div className="text-lg font-semibold">{llmStats.outputTokens.toLocaleString()}</div>
-          </div>
-          <div className="bg-gray-50 p-3 rounded-md">
-            <div className="text-sm text-gray-500">Total Cost</div>
-            <div className="text-lg font-semibold">
-              ${llmStats.totalCost.toFixed(6)}
+        <h3 className="text-lg font-medium text-gray-900 mb-4">Workflow Statistics</h3>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="bg-gray-50 p-3 rounded-md">
+              <div className="text-sm text-gray-500">Total Steps</div>
+              <div className="text-lg font-semibold">{workflowStats.totalSteps}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-md">
+              <div className="text-sm text-gray-500">Total Tokens</div>
+              <div className="text-lg font-semibold">{workflowStats.totalTokens.toLocaleString()}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-md">
+              <div className="text-sm text-gray-500">Total Cost</div>
+              <div className="text-lg font-semibold">${workflowStats.totalCost.toFixed(6)}</div>
+            </div>
+            <div className="bg-gray-50 p-3 rounded-md">
+              <div className="text-sm text-gray-500">Total Time</div>
+              <div className="text-lg font-semibold">{workflowStats.elapsedTime.toFixed(2)}s</div>
             </div>
           </div>
+
+          {workflowStats.llmNodes.map((node, index) => (
+            <div key={node.nodeId} className="border rounded-lg p-4">
+              <h4 className="font-medium text-gray-900 mb-2">{node.title}</h4>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <div className="text-sm text-gray-500">Model</div>
+                  <div className="font-medium">{node.model}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Latency</div>
+                  <div className="font-medium">{node.latency.toFixed(2)}s</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Input Tokens</div>
+                  <div className="font-medium">{node.inputTokens.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Output Tokens</div>
+                  <div className="font-medium">{node.outputTokens.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Total Tokens</div>
+                  <div className="font-medium">{node.totalTokens.toLocaleString()}</div>
+                </div>
+                <div>
+                  <div className="text-sm text-gray-500">Cost</div>
+                  <div className="font-medium">${node.cost.toFixed(6)}</div>
+                </div>
+              </div>
+            </div>
+          ))}
         </div>
       </div>
 
