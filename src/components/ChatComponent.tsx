@@ -17,11 +17,20 @@ interface Message {
 }
 
 interface ChatResponse {
-  event: string;
+  event: 'agent_message' | 'agent_thought' | 'message_end';
   message_id?: string;
   conversation_id?: string;
   answer?: string;
   created_at?: number;
+  task_id?: string;
+  id?: string;
+  position?: number;
+  thought?: string;
+  observation?: string;
+  tool?: string;
+  tool_labels?: Record<string, any>;
+  tool_input?: string;
+  message_files?: any[];
   metadata?: {
     usage?: {
       total_tokens: number;
@@ -29,18 +38,14 @@ interface ChatResponse {
       latency: number;
     };
   };
-  task_id?: string;
-  id?: string;
-  thought?: string;
-  files?: any;
 }
 
 export default function ChatComponent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [conversationId, setConversationId] = useState<string>('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string | null>(null);
+  const [conversationId, setConversationId] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const currentMessageRef = useRef<{
@@ -54,15 +59,16 @@ export default function ChatComponent() {
   });
 
   const API_KEY = process.env.NEXT_PUBLIC_DIFY_CHATBOT_API_KEY || '';
-  const API_BASE_URL = 'http://localhost/v1';
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost/v1';
 
   useEffect(() => {
     scrollToBottom();
     testApiConnection();
   }, [messages]);
 
-  const addDebugLog = (message: string) => {
-    setDebugLog(prev => [...prev, `${new Date().toISOString()}: ${message}`]);
+  const addDebugLog = (log: string) => {
+    const timestamp = new Date().toISOString();
+    setDebugLog(prev => [...prev, `${timestamp}: ${log}`]);
   };
 
   const testApiConnection = async () => {
@@ -111,130 +117,125 @@ export default function ChatComponent() {
     e.preventDefault();
     if (!input.trim() || loading) return;
 
-    setLoading(true);
-    setError('');
-    setDebugLog([]); // Clear debug log for new message
-    const userMessage = input;
+    const userMessage = input.trim();
     setInput('');
+    
+    // Create a temporary message ID
+    const tempMessageId = Math.random().toString(36).substr(2, 9);
+    
+    // Add user message immediately
+    const tempUserMessage: Message = {
+      id: tempMessageId,
+      conversation_id: conversationId || '',
+      query: userMessage,
+      answer: '',
+      created_at: Date.now()
+    };
 
+    setMessages(prev => [...prev, tempUserMessage]);
+    setLoading(true);
+    setError(null);
+
+    // Reset current message ref
     currentMessageRef.current = {
-      messageId: '',
-      conversationId: '',
+      messageId: tempMessageId,
+      conversationId: conversationId || '',
       answer: ''
     };
 
-    const tempUserMessage: Message = {
-      id: Date.now().toString(),
-      conversation_id: conversationId,
-      query: userMessage,
-      answer: '',
-      created_at: Math.floor(Date.now() / 1000),
-    };
-    setMessages(prev => [...prev, tempUserMessage]);
-
+    addDebugLog(`Initialized new message with ID: ${tempMessageId}`);
+    
     try {
-      console.log('Sending request with:', {
-        API_KEY: API_KEY ? 'Set' : 'Not Set',
-        API_BASE_URL,
-        conversationId,
-      });
-
-      const requestBody = {
-        inputs: {},
-        query: userMessage,
-        response_mode: 'streaming',
-        conversation_id: conversationId || '',
-        user: 'test-user',
-      };
-
-      console.log('Request body:', requestBody);
-
       const response = await fetch(`${API_BASE_URL}/chat-messages`, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${API_KEY}`,
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${API_KEY}`
         },
-        body: JSON.stringify(requestBody),
+        body: JSON.stringify({
+          inputs: {},
+          query: userMessage,
+          response_mode: 'streaming',
+          conversation_id: conversationId,
+          user: 'default'
+        })
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+      addDebugLog(`Starting streaming request for message: ${tempMessageId}`);
 
       if (!response.ok) {
-        const errorData = await response.text();
-        addDebugLog(`API Error: ${response.status} ${errorData}`);
-        throw new Error(`API error: ${response.status} ${errorData}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const reader = response.body?.getReader();
-      if (!reader) throw new Error('No reader available');
+      const decoder = new TextDecoder();
 
-      while (true) {
-        const { done, value } = await reader.read();
+      while (reader) {
+        const { value, done } = await reader.read();
         if (done) break;
 
-        const chunk = new TextDecoder().decode(value);
-        addDebugLog(`Raw chunk: ${chunk}`);
-
+        const chunk = decoder.decode(value);
         const lines = chunk.split('\n');
 
         for (const line of lines) {
-          if (line.trim() && line.startsWith('data: ')) {
-            try {
-              const jsonData: ChatResponse = JSON.parse(line.slice(6));
-              addDebugLog(`Parsed event: ${JSON.stringify(jsonData)}`);
+          if (!line.trim() || !line.startsWith('data: ')) continue;
 
-              if (jsonData.event === 'agent_message') {
-                currentMessageRef.current = {
-                  messageId: jsonData.message_id || currentMessageRef.current.messageId,
-                  conversationId: jsonData.conversation_id || currentMessageRef.current.conversationId,
-                  answer: currentMessageRef.current.answer + (jsonData.answer || '')
-                };
+          try {
+            const jsonData: ChatResponse = JSON.parse(line.slice(6));
+            addDebugLog(`Parsed event: ${JSON.stringify(jsonData)}`);
 
-                addDebugLog(`Current message state: ${JSON.stringify(currentMessageRef.current)}`);
+            if (jsonData.event === 'agent_message') {
+              // Accumulate the answer text
+              const newAnswer = (currentMessageRef.current.answer || '') + (jsonData.answer || '');
+              addDebugLog(`Accumulating answer: "${currentMessageRef.current.answer}" + "${jsonData.answer}" = "${newAnswer}"`);
+              
+              // Update the current message reference
+              currentMessageRef.current = {
+                messageId: jsonData.message_id || currentMessageRef.current.messageId,
+                conversationId: jsonData.conversation_id || currentMessageRef.current.conversationId,
+                answer: newAnswer
+              };
 
-                setMessages(prev => {
-                  const newMessages = prev.map(msg => 
-                    msg.id === tempUserMessage.id
-                      ? {
-                          ...msg,
-                          id: currentMessageRef.current.messageId,
-                          conversation_id: currentMessageRef.current.conversationId,
-                          answer: currentMessageRef.current.answer,
-                        }
-                      : msg
-                  );
-                  addDebugLog(`New messages state: ${JSON.stringify(newMessages)}`);
-                  return newMessages;
+              addDebugLog(`Updated current message state: ${JSON.stringify(currentMessageRef.current)}`);
+
+              // Update messages state with accumulated answer
+              setMessages(prevMessages => {
+                const updatedMessages = prevMessages.map(msg => {
+                  if (msg.id === tempMessageId || msg.id === currentMessageRef.current.messageId) {
+                    const updatedMsg = {
+                      ...msg,
+                      id: currentMessageRef.current.messageId,
+                      conversation_id: currentMessageRef.current.conversationId,
+                      answer: newAnswer,
+                    };
+                    addDebugLog(`Updating message: ${JSON.stringify(updatedMsg)}`);
+                    return updatedMsg;
+                  }
+                  return msg;
                 });
-              }
 
-              if (jsonData.event === 'message_end') {
-                addDebugLog('Message end received');
-                setConversationId(currentMessageRef.current.conversationId);
-              }
-
-              if (jsonData.event === 'error') {
-                throw new Error(`Stream error: ${jsonData.message}`);
-              }
-            } catch (e) {
-              addDebugLog(`Error parsing SSE data: ${e}, Raw line: ${line}`);
+                // Create a completely new array to ensure React detects the change
+                return [...updatedMessages];
+              });
             }
+
+            if (jsonData.event === 'message_end') {
+              addDebugLog('Message end received');
+              setConversationId(currentMessageRef.current.conversationId);
+            }
+
+            if (jsonData.event === 'error') {
+              setError(jsonData.message || 'An error occurred');
+            }
+          } catch (e) {
+            addDebugLog(`Error parsing JSON: ${e}`);
+            console.error('Error parsing JSON:', e);
           }
         }
       }
-    } catch (error) {
-      console.error('Error sending message:', error);
-      setError(error instanceof Error ? error.message : 'An error occurred');
-      setMessages(prev => prev.map(msg => 
-        msg.id === tempUserMessage.id
-          ? {
-              ...msg,
-              answer: 'Sorry, there was an error processing your message. Please try again.',
-            }
-          : msg
-      ));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'An error occurred');
+      addDebugLog(`Error: ${e}`);
     } finally {
       setLoading(false);
     }
@@ -251,12 +252,12 @@ export default function ChatComponent() {
       {/* Chat messages */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.map((message, index) => (
-          <div key={`${message.id}-${index}`} className="space-y-2">
+          <div key={`${message.id}-${index}-${message.answer}`} className="space-y-2">
             <div className="flex flex-col space-y-2">
               <div className="bg-blue-100 p-3 rounded-lg self-end max-w-[80%]">
                 <p className="text-gray-800 whitespace-pre-wrap">{message.query}</p>
               </div>
-              {message.answer !== undefined && message.answer !== '' && (
+              {message.answer && (
                 <div className="bg-gray-100 p-3 rounded-lg self-start max-w-[80%]">
                   <p className="text-gray-800 whitespace-pre-wrap">{message.answer}</p>
                 </div>
