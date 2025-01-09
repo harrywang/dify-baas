@@ -17,20 +17,14 @@ interface Message {
 }
 
 interface ChatResponse {
-  event: 'agent_message' | 'agent_thought' | 'message_end';
+  event: 'agent_message' | 'message' | 'message_end';
   message_id?: string;
   conversation_id?: string;
   answer?: string;
   created_at?: number;
   task_id?: string;
   id?: string;
-  position?: number;
-  thought?: string;
-  observation?: string;
-  tool?: string;
-  tool_labels?: Record<string, any>;
-  tool_input?: string;
-  message_files?: any[];
+  from_variable_selector?: boolean | null;
   metadata?: {
     usage?: {
       total_tokens: number;
@@ -184,7 +178,7 @@ export default function ChatComponent() {
             const jsonData: ChatResponse = JSON.parse(line.slice(6));
             addDebugLog(`Parsed event: ${JSON.stringify(jsonData)}`);
 
-            if (jsonData.event === 'agent_message') {
+            if (jsonData.event === 'agent_message' || jsonData.event === 'message') {
               // Accumulate the answer text
               const newAnswer = (currentMessageRef.current.answer || '') + (jsonData.answer || '');
               addDebugLog(`Accumulating answer: "${currentMessageRef.current.answer}" + "${jsonData.answer}" = "${newAnswer}"`);
