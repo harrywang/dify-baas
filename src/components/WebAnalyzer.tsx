@@ -22,7 +22,7 @@ interface WorkflowStats {
   llmNodes: LLMNodeStats[];
 }
 
-export default function ApiForm() {
+export default function WebAnalyzer() {
   const [url, setUrl] = useState('https://harrywang.me/car');
   const [response, setResponse] = useState('');
   const [loading, setLoading] = useState(false);
