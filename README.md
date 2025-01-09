@@ -172,7 +172,7 @@ npm install
 
 2. Create a `.env` file in the root directory with your Dify API key:
 ```bash
-NEXT_PUBLIC_DIFY_API_KEY=your_difyapi_key_here
+NEXT_PUBLIC_DIFY_WORKFLOW_API_KEY=your_difyapi_key_here
 ```
 
 3. Start the development server:
